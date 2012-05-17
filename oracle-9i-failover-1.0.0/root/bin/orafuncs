@@ -1,0 +1,21 @@
+
+function disableAllOraEntries()
+{
+  SRC=$1
+  # Turn off all entries
+  for db in `cat $SRC | grep "^[A-Z0-9]*:" | awk 'BEGIN {FS=":"} {print $1}'` ; do
+    sed -i s/"\(^${db}:.*:\)[YyNn]$"/\\1N/g $SRC
+  done
+}
+
+
+function enableOraEntries()
+{
+  SRC=$1
+  ENABLE=$2
+
+  # Update the Oracle entries to be started.
+  for db in $ENABLE ; do
+    sed -i s/"\(^${db}:.*:\)[YyNn]"/\\1Y/g $SRC
+  done
+}

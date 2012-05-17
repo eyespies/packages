@@ -1,0 +1,130 @@
+#!/bin/sh
+# chkconfig: - 99 10
+# description: Oracle auto-installation script, used to automatically install Oracle from a remote system.
+#
+# Set ORA_HOME to be equivalent to the $ORACLE_HOME
+# from which you wish to execute dbstart and dbshut;
+#
+# Set ORA_OWNER to the user id of the owner of the 
+# Oracle database in ORA_HOME.
+
+. /etc/init.d/functions
+
+
+CPIOSRC=/opt/software
+CPIODST=/u01/software/oracle
+LOG=/tmp/orainst-`date +"%F-%R"`
+
+#-------------------------------------------------------------------------------
+# Setup the directories from which the software will be installed and extract the archives.
+mkdir $CPIOSRC
+mount xenhost:/opt/software $CPIOSRC
+mkdir -p $CPIODST
+cd $CPIODST
+for s in $CPIOSRC/Oracle/9i/x86_64/disk-images/*.cpio
+  do cpio -ivmd < $s
+done
+
+mkdir $CPIODST/patches
+unzip $CPIOSRC/Oracle/9i/x86_64/patches/p4547809_92080_Linux-x86-64.zip -d $CPIODST/patches
+
+umount $CPIOSRC
+
+
+chown oracle:oinstall $CPIODST -R
+
+
+#-------------------------------------------------------------------------------
+# Retrieve the scripts used to automate the installation.  This is done because 
+# the install must be performed as the 'oracle' user
+rm -f /u01/oracle/oracle-install.sh
+wget http://xenhost/syssetup/shared/9i/oracle-install.sh -O /u01/oracle/oracle-install.sh
+
+rm -f /u01/oracle/oracle-patch.sh
+wget http://xenhost/syssetup/shared/9i/oracle-patch.sh -O /u01/oracle/oracle-patch.sh
+
+rm -f /u01/oracle/orainstRoot.sh
+wget http://xenhost/syssetup/shared/9i/orainstRoot.sh -O /u01/oracle/orainstRoot.sh
+
+
+#  Make sure permissions are properly set
+chown oracle:oinstall /u01/oracle/oracle-install.sh /u01/oracle/oracle-patch.sh
+chmod 750 /u01/oracle/oracle-install.sh /u01/oracle/oracle-patch.sh
+chown oracle:oinstall /u01/app -R
+
+
+# Setup the Oracle Inventory path and files
+chmod 770 /u01/oracle/orainstRoot.sh
+/u01/oracle/orainstRoot.sh
+rm -f /u01/oracle/orainstRoot.sh
+
+
+#-------------------------------------------------------------------------------
+# Install the base Oracle product.
+su - oracle -c "/u01/oracle/oracle-install.sh > /tmp/orainst.log"
+
+# This script has to be run as the root user.
+while [ ! -f /u01/app/oracle/product/9.2.0/root.sh ] ; do
+  sleep 5
+done
+sleep 5
+/u01/app/oracle/product/9.2.0/root.sh
+
+# Need to remove the file so that the while loop after the patch install (below)
+# works properly.
+mv /u01/app/oracle/product/9.2.0/root.sh /u01/app/oracle/product/9.2.0/root.sh.bak
+
+# Need to make sure that the base install is complete before starting the patch
+# install
+sleep 120
+
+#-------------------------------------------------------------------------------
+# Install the latest Oracle patches.
+su - oracle -c "/u01/oracle/oracle-patch.sh > /tmp/orapatch.log"
+
+# This script has to be run as the root user.
+while [ ! -f /u01/app/oracle/product/9.2.0/root.sh ] ; do
+  sleep 5
+done
+sleep 5
+/u01/app/oracle/product/9.2.0/root.sh
+
+
+
+#-------------------------------------------------------------------------------
+# Setup the services based on the system
+chkconfig --level 0123456 oracle-setup off
+
+service oracle add
+service oracle-standby add
+service oralsnr add
+
+#-----------------------------------------------------------
+# !NOTE!  This should not be uncommented.  The setup routines for both the 
+# install and patch setup fork into the background.  Removing these files
+# typically happens before the setup is finished, resulting in a failed 
+# install or patch.
+#-----------------------------------------------------------
+# Clean up the disk
+#rm -rf /u01/software
+
+
+
+# If this is the primary server, then enable the primary oracle service and disable the standby
+hostname | grep "01" > /dev/null
+if [ $? -eq 1 ] ; then
+  chkconfig --level 2345 oracle on
+  chkconfig --level 016 oracle off
+  chkconfig --level 2345 oralsnr on
+  chkconfig --level 016 oralsnr off
+  chkconfig --level 0123456 oracle-standby off
+fi
+
+hostname | grep "02" > /dev/null
+if [ $? -eq 1 ] ; then
+  chkconfig --level 2345 oracle-standby on
+  chkconfig --level 016 oracle-standby off
+  chkconfig --level 2345 oralsnr on
+  chkconfig --level 016 oralsnr off
+  chkconfig --level 0123456 oracle off
+fi
