@@ -1,0 +1,33 @@
+%_topdir %{getenv:HOME}/packages
+%_buildroot ~/packages
+%_signature gpg 
+%_gpg_name Justin Spies
+%_topdir /root/packages
+%_signature gpg
+
+
+%is_suse %(test -e /etc/SuSE-release && echo 1 || echo 0)
+%is_opensuse %(grep -i opensuse /etc/SuSE-release >> /dev/null && echo 1 || echo 0)
+%is_fedora %(test -e /etc/fedora-release && echo 1 || echo 0)
+%is_centos %(test -e /etc/redhat-release && grep -i centos /etc/redhat-release >/dev/null && echo 1 || echo 0)
+%rhel_dist redhat
+%rhel_disttag el
+%centos_dist centos
+%centos_disttag el
+%fedora_dist fedora
+%fedora_disttag fc
+%suse_dist sles
+%suse_disttag sles
+%opensuse_dist openSUSE
+%opensuse_disttag sles
+
+# %dist is used to query the RPM system to determine the OS vendor release
+# %disttag is used as part of the package name
+# Default to RedHat
+%dist redhat
+%disttag el
+
+%distver %(release="`rpm -q --queryformat='%{VERSION}' %{dist}-release | cut -f1 -d. | sed s/://g | sed s/Server//g`" ; if test $? != 0 ; then release="" ; fi ; echo "$release")
+
+# Macro that print mesages to syslog at package (un)install time
+%nnmmsg logger -t %{name}/rpm
