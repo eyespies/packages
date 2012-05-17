@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2012, Ascendant Technology, LLC
+# Copyright 2012, Justin Spies
 #   
 # Created 2012-02-08 by Justin Spies <justin.spies@atech.com>
 #
